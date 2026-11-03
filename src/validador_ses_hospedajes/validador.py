@@ -14,7 +14,7 @@ from typing import Final
 
 from . import documentos
 from .esquema import ESQUEMA_PARTES, ESQUEMA_RESERVAS, Bloque, Campo, Def, Tipo
-from .modelo import NOMBRE_TIPO, Incidencia, Informe, TipoComunicacion
+from .modelo import Incidencia, Informe, TipoComunicacion
 from .oficial import PAIS_ESPANA
 from .paises import PAISES_ALFA3
 from .parseo import ErrorParseo, Limites, Nodo, codificacion_declarada, parsear
@@ -265,11 +265,8 @@ class _Validador:
                 elif _hijo(com, "establecimiento") is not None:
                     pistas.add("reservas")
         linea = solicitud.linea if solicitud is not None else self.raiz.linea
-        nombres = {
-            "partes": "partes de viajeros (§3)",
-            "reservas": "reservas de hospedaje (§4)",
-            "vehiculos": "vehículos (§5/§6)",
-        }
+        # Códigos neutros (válidos en los dos idiomas de los mensajes).
+        nombres = {"partes": "partes (§3)", "reservas": "reservas (§4)", "vehiculos": "vehiculos (§5/§6)"}
         if len(pistas) > 1:
             tipos = ", ".join(nombres[p] for p in sorted(pistas))
             self.add("estructura.tipos-mezclados", "/peticion/solicitud", linea, tipos=tipos)
@@ -284,8 +281,8 @@ class _Validador:
                     "estructura.tipo-distinto",
                     "/peticion/solicitud",
                     linea,
-                    pedido=NOMBRE_TIPO[self.tipo_pedido]["es"],
-                    detectado=NOMBRE_TIPO[detectado]["es"],
+                    pedido=nombres[self.tipo_pedido.value],
+                    detectado=nombres[detectado.value],
                 )
                 return None
             return self.tipo_pedido

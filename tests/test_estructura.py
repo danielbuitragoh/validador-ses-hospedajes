@@ -171,3 +171,9 @@ def test_gravedad_y_resumen_del_informe() -> None:
     assert len(inf.errores) == 1
     assert inf.avisos == ()
     assert inf.errores[0].gravedad is Gravedad.ERROR
+
+
+def test_los_mensajes_de_tipo_no_mezclan_idiomas() -> None:
+    [inc] = informe(reserva(), tipo="partes").errores
+    assert "«partes (§3)»" in inc.mensaje()
+    assert "'reservas (§4)'" in inc.mensaje("en")
