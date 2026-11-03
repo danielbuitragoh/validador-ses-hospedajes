@@ -1,0 +1,61 @@
+# Publica en PyPI al subir una etiqueta vX.Y.Z, con «trusted publishing» (OIDC): sin tokens ni secretos.
+#
+# Antes de la primera publicación (una sola vez, por el propietario del proyecto):
+#   1. En https://pypi.org/manage/account/publishing/ añadir un «pending publisher» de GitHub con:
+#      proyecto validador-ses-hospedajes · propietario danielbuitragoh · repositorio validador-ses-hospedajes ·
+#      workflow publicar.yml · entorno pypi.
+#   2. En GitHub, Settings → Environments, crear el entorno «pypi» (recomendado: exigir aprobación manual).
+#
+# Para publicar: actualizar la versión en pyproject.toml y __init__.py, y luego
+#   git tag v0.1.0 && git push origin v0.1.0
+name: Publicar en PyPI
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  construir:
+    name: Construir y comprobar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - name: Pruebas, ruff y mypy
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+          uv run mypy
+          uv run pytest
+      - name: La etiqueta coincide con la versión del paquete
+        run: |
+          version=$(uv run python -c "import validador_ses_hospedajes as v; print(v.__version__)")
+          test "v${version}" = "${GITHUB_REF_NAME}" || { echo "Etiqueta ${GITHUB_REF_NAME} ≠ versión ${version}"; exit 1; }
+      - run: uv build
+      - run: uvx twine check --strict dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    name: Publicar
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/validador-ses-hospedajes/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
