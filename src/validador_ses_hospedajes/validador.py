@@ -22,7 +22,7 @@ from .reglas import REGLAS
 
 Entrada = bytes | str | os.PathLike[str]
 
-# [0-9] y no \\d: \\d admite cifras Unicode (p. ej. «２０２６»), que el formato oficial no contempla.
+# [0-9] y no \d: \d admite cifras Unicode (p. ej. «２０２６»), que el formato oficial no contempla.
 _RE_FECHA: Final = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})")
 _RE_FECHA_HORA: Final = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})")
 _RE_NUMERICO: Final = re.compile(r"[+-]?[0-9]+(?:[.,][0-9]+)?")
