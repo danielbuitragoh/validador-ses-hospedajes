@@ -5,17 +5,55 @@ produce un error, como mucho un aviso (ver ``reglas.py`` y docs/oficial/NOTAS.md
 """
 
 import os
+import re
 from collections import Counter
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
+from typing import Final
 
 from . import documentos
 from .esquema import ESQUEMA_PARTES, ESQUEMA_RESERVAS, Bloque, Campo, Def, Tipo
 from .modelo import NOMBRE_TIPO, Incidencia, Informe, TipoComunicacion
+from .oficial import PAIS_ESPANA
+from .paises import PAISES_ALFA3
 from .parseo import ErrorParseo, Limites, Nodo, codificacion_declarada, parsear
 from .reglas import REGLAS
 
 Entrada = bytes | str | os.PathLike[str]
+
+# [0-9] y no \\d: \\d admite cifras Unicode (p. ej. «２０２６»), que el formato oficial no contempla.
+_RE_FECHA: Final = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})")
+_RE_FECHA_HORA: Final = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})")
+_RE_NUMERICO: Final = re.compile(r"[+-]?[0-9]+(?:[.,][0-9]+)?")
+_RE_ENTERO: Final = re.compile(r"[0-9]+")
+_RE_INE: Final = re.compile(r"[0-9]{5}")
+_RE_CADUCIDAD: Final = re.compile(r"(0[1-9]|1[0-2])/[0-9]{4}")
+# PENDIENTE-OFICIAL (P9): «formato de dirección de correo electrónico válido» sin más detalle: algo@dominio.ext.
+_RE_CORREO: Final = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
+_RE_TELEFONO: Final = re.compile(r"[0-9+()\-.\s]+")
+_RE_ALFANUMERICO: Final = re.compile(r"[A-Za-z0-9]+")
+_RE_CP_ESPANA: Final = re.compile(r"[0-9]{5}")
+
+
+def es_fecha(valor: str) -> bool:
+    """AAAA-MM-DD y fecha real del calendario."""
+    m = _RE_FECHA.fullmatch(valor)
+    if not m:
+        return False
+    try:
+        date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return False
+    return True
+
+
+def es_fecha_hora(valor: str) -> bool:
+    """AAAA-MM-DDThh:mm:ss, sin zona horaria ni fracciones, y fecha y hora reales."""
+    m = _RE_FECHA_HORA.fullmatch(valor)
+    if not m or not es_fecha(m.group(1)):
+        return False
+    return int(m.group(2)) <= 23 and int(m.group(3)) <= 59 and int(m.group(4)) <= 59
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -326,14 +364,76 @@ class _Validador:
         self._valor(valor, nodo, defn, ruta)
 
     def _valor(self, valor: str, nodo: Nodo, defn: Campo, ruta: str) -> None:
-        if defn.tipo is Tipo.BOOLEANO:
-            self.add("valor.booleano", ruta, nodo.linea, defn.apartado, campo=defn.nombre, valor=valor[:20])
+        """Formato según el tipo de la tabla. Los mensajes no repiten valores personales: solo códigos."""
+        ap, campo, linea, t = defn.apartado, defn.nombre, nodo.linea, defn.tipo
+        if t is Tipo.CODIGO and defn.tabla is not None:
+            if valor not in defn.tabla:
+                apartado = f"{ap}; {defn.tabla_apartado}" if defn.tabla_apartado != ap else ap
+                permitidos = ", ".join(defn.tabla)
+                self.add("valor.codigo", ruta, linea, apartado, campo=campo, valor=valor[:20], permitidos=permitidos)
+            return
+        if defn.maximo is not None and len(valor) > defn.maximo and t is not Tipo.PAIS:
+            self.add("valor.longitud", ruta, linea, ap, campo=campo, longitud=len(valor), max=defn.maximo)
+        if t is Tipo.FECHA and not es_fecha(valor):
+            self.add("valor.fecha", ruta, linea, ap, campo=campo)
+        elif t is Tipo.FECHA_HORA and not es_fecha_hora(valor):
+            self.add("valor.fecha-hora", ruta, linea, ap, campo=campo)
+        elif t is Tipo.NUMERICO:
+            if not _RE_NUMERICO.fullmatch(valor):
+                self.add("valor.numerico", ruta, linea, ap, campo=campo)
+            elif not _RE_ENTERO.fullmatch(valor) or int(valor) == 0:
+                self.add("valor.numerico-entero", ruta, linea, ap, campo=campo, valor=valor)
+        elif t is Tipo.BOOLEANO:
+            # PENDIENTE-OFICIAL (P3): el documento no define el formato del Booleano.
+            self.add("valor.booleano", ruta, linea, ap, campo=campo, valor=valor[:20])
+        elif t is Tipo.PAIS and valor not in PAISES_ALFA3:
+            self.add("valor.pais", ruta, linea, ap, valor=valor[:20])
+        elif t is Tipo.INE and not _RE_INE.fullmatch(valor):
+            # PENDIENTE-OFICIAL (P4, P15): sin tabla del INE; solo el formato de 5 dígitos.
+            self.add("valor.municipio-ine", ruta, linea, ap)
+        elif t is Tipo.CADUCIDAD and not _RE_CADUCIDAD.fullmatch(valor):
+            self.add("valor.caducidad", ruta, linea, ap)
+        elif t is Tipo.CORREO and not _RE_CORREO.fullmatch(valor):
+            self.add("valor.correo", ruta, linea, ap, campo=campo)
+        elif t is Tipo.TELEFONO and not _RE_TELEFONO.fullmatch(valor):
+            # PENDIENTE-OFICIAL (P9): formato de teléfono no definido.
+            self.add("valor.telefono", ruta, linea, ap, campo=campo)
+        elif t is Tipo.SOPORTE and not _RE_ALFANUMERICO.fullmatch(valor):
+            # PENDIENTE-OFICIAL (P10): formato del soporte no definido.
+            self.add("valor.soporte", ruta, linea, ap)
 
     # -- reglas por comunicación ------------------------------------------------------------------------------------
 
     def _comunicacion(self, com: Nodo, base: str) -> None:
+        for ruta, direccion in self._direcciones(com, base):
+            self._direccion(direccion, ruta)
         for pi, persona in enumerate(_hijos(com, "persona"), start=1):
             self._documento(persona, f"{base}/persona[{pi}]")
+
+    @staticmethod
+    def _direcciones(com: Nodo, base: str) -> list[tuple[str, Nodo]]:
+        out: list[tuple[str, Nodo]] = []
+        datos = _hijo(_hijo(com, "establecimiento") or com, "datosEstablecimiento")
+        if datos is not None and (d := _hijo(datos, "direccion")) is not None:
+            out.append((f"{base}/establecimiento/datosEstablecimiento/direccion", d))
+        for pi, persona in enumerate(_hijos(com, "persona"), start=1):
+            if (d := _hijo(persona, "direccion")) is not None:
+                out.append((f"{base}/persona[{pi}]/direccion", d))
+        return out
+
+    def _direccion(self, d: Nodo, ruta: str) -> None:
+        """§7.1, bloque direccion."""
+        pais = _valor(d, "pais")
+        cp = _valor(d, "codigoPostal")
+        ine = _valor(d, "codigoMunicipio")
+        nodo_cp = _hijo(d, "codigoPostal")
+        if pais == PAIS_ESPANA and cp and nodo_cp is not None:
+            # PENDIENTE-OFICIAL (P23): el documento solo dice String(20); en España el código postal tiene 5 cifras
+            # y sus dos primeras son las de la provincia, como en el código del INE.
+            if not _RE_CP_ESPANA.fullmatch(cp):
+                self.add("direccion.codigo-postal", f"{ruta}/codigoPostal", nodo_cp.linea)
+            elif ine and _RE_INE.fullmatch(ine) and cp[:2] != ine[:2]:
+                self.add("direccion.cp-provincia", f"{ruta}/codigoPostal", nodo_cp.linea, cp=cp[:2], ine=ine[:2])
 
     def _documento(self, persona: Nodo, ruta: str) -> None:
         """§3/§4: el número «deberá corresponder al tipo de documento … y tener un formato válido en el caso de

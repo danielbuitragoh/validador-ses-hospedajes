@@ -74,7 +74,7 @@ def test_el_mensaje_no_repite_datos_personales() -> None:
     assert "Secretísimo" not in inc.mensaje("en")
 
 
-# --- fechas -------------------------------------------------------------------------------------------------------------
+# --- fechas ---
 
 
 @pytest.mark.parametrize(
@@ -159,7 +159,7 @@ def test_todos_los_codigos_de_sexo(valor: str) -> None:
     assert "valor.codigo" not in errores(cambiar(parte(), "sexo", valor))
 
 
-# --- país, INE, caducidad, correo, teléfono, soporte ---------------------------------------------------------------------
+# --- país, INE, caducidad, correo, teléfono, soporte ---
 
 
 @pytest.mark.parametrize("valor", ["ES", "esp", "XXX", "España", "724"])
