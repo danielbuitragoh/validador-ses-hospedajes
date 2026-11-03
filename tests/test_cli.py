@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 
 import pytest
-from validador_ses_hospedajes.cli import main
 
 from validador_ses_hospedajes import REGLAS, __version__
+from validador_ses_hospedajes.cli import main
 
 from ayudas import EJEMPLOS, parte
 
@@ -55,7 +55,7 @@ def test_errores_legibles_con_ruta_linea_regla_y_apartado(
     codigo, out, _ = ejecutar(capsys, str(con_errores))
     assert codigo == 1
     assert "[ERROR]" in out
-    assert "línea 25" in out
+    assert "línea 29" in out
     assert "/peticion/solicitud/comunicacion[1]/persona[1]/numeroDocumento" in out
     assert "La letra de control del NIF no es correcta: debería ser «R»." in out
     assert "documento.letra" in out
@@ -121,7 +121,7 @@ def test_json(capsys: pytest.CaptureFixture[str], con_errores: Path) -> None:
     assert malo["valido"] is False
     codigos = [i["codigo"] for i in malo["incidencias"]]
     assert codigos == ["valor.booleano", "documento.letra"]
-    assert malo["incidencias"][1]["linea"] == 25
+    assert malo["incidencias"][1]["linea"] == 29
 
 
 def test_json_con_no_leidos(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
@@ -136,7 +136,7 @@ def test_ingles(capsys: pytest.CaptureFixture[str], con_errores: Path) -> None:
     codigo, out, _ = ejecutar(capsys, "--ingles", str(con_errores))
     assert codigo == 1
     assert "The NIF check letter is wrong: it should be 'R'." in out
-    assert "line 25" in out
+    assert "line 29" in out
     assert "NOT VALID" in out
     assert "not an official tool" in out
     codigo, out, _ = ejecutar(capsys, "--english", "--json", str(con_errores))
@@ -145,14 +145,10 @@ def test_ingles(capsys: pytest.CaptureFixture[str], con_errores: Path) -> None:
 
 def test_estricto_y_sin_avisos(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     ruta = tmp_path / "aviso.xml"
-    ruta.write_text(
-        parte()
-        .replace("<sexo>M</sexo>", "<sexo>M</sexo>\n<telefono2/>".replace("\n<telefono2/>", ""))
-        .replace(
-            "<numHabitaciones>1</numHabitaciones>", "<numHabitaciones>1</numHabitaciones><internet>true</internet>"
-        ),
-        encoding="utf-8",
+    xml = parte().replace(
+        "<numHabitaciones>1</numHabitaciones>", "<numHabitaciones>1</numHabitaciones><internet>true</internet>"
     )
+    ruta.write_text(xml, encoding="utf-8")
     assert ejecutar(capsys, str(ruta))[0] == 0
     assert ejecutar(capsys, "--estricto", str(ruta))[0] == 1
     codigo, out, _ = ejecutar(capsys, "--sin-avisos", str(ruta))

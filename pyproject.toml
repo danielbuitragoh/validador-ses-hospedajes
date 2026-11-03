@@ -32,7 +32,7 @@ Issues = "https://github.com/danielbuitragoh/validador-ses-hospedajes/issues"
 "Proyecto relacionado" = "https://github.com/danielbuitragoh/registro-viajeros"
 
 [project.scripts]
-ses-validar = "validador_ses_hospedajes.cli:main"
+ses-validar = "validador_ses_hospedajes.cli:ejecutar"
 
 [dependency-groups]
 dev = [
