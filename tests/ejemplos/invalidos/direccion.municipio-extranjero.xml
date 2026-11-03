@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FICTICIO: ejemplo inválido de la regla direccion.municipio-extranjero (§7.1): Fuera de España, «nombreMunicipio» obligatorio. Generado por scripts/generar_ejemplos.py; no son personas ni documentos reales. -->
+<!-- Parte de viajeros (§3, figura 1): un adulto con NIF y un menor; y un viajero extranjero con pasaporte. -->
+<peticion>
+  <solicitud>
+    <codigoEstablecimiento>0000099999</codigoEstablecimiento>
+    <comunicacion>
+      <contrato>
+        <referencia>FICTICIO-0001</referencia>
+        <fechaContrato>2026-10-20</fechaContrato>
+        <fechaEntrada>2026-11-02T15:30:00</fechaEntrada>
+        <fechaSalida>2026-11-05T11:00:00</fechaSalida>
+        <numPersonas>2</numPersonas>
+        <numHabitaciones>1</numHabitaciones>
+        <pago>
+          <tipoPago>TARJT</tipoPago>
+          <fechaPago>2026-10-20</fechaPago>
+          <medioPago>VISA ****0000</medioPago>
+          <titular>Lucía Prueba Ejemplo</titular>
+          <caducidadTarjeta>09/2028</caducidadTarjeta>
+        </pago>
+      </contrato>
+      <persona>
+        <rol>VI</rol>
+        <nombre>Lucía</nombre>
+        <apellido1>Prueba</apellido1>
+        <apellido2>Ejemplo</apellido2>
+        <tipoDocumento>NIF</tipoDocumento>
+        <numeroDocumento>00000001R</numeroDocumento>
+        <soporteDocumento>ZZZ000001</soporteDocumento>
+        <fechaNacimiento>1985-04-12</fechaNacimiento>
+        <nacionalidad>ESP</nacionalidad>
+        <sexo>M</sexo>
+        <direccion>
+          <direccion>Calle Inventada 12, 3ºB</direccion>
+          <codigoMunicipio>28079</codigoMunicipio>
+          <codigoPostal>28001</codigoPostal>
+          <pais>ESP</pais>
+        </direccion>
+        <telefono>+34600000001</telefono>
+        <correo>lucia@example.com</correo>
+        <parentesco>PM</parentesco>
+      </persona>
+      <persona>
+        <rol>VI</rol>
+        <nombre>Mateo</nombre>
+        <apellido1>Prueba</apellido1>
+        <apellido2>Ejemplo</apellido2>
+        <fechaNacimiento>2016-07-20</fechaNacimiento>
+        <nacionalidad>ESP</nacionalidad>
+        <sexo>H</sexo>
+        <direccion>
+          <direccion>Calle Inventada 12, 3ºB</direccion>
+          <codigoMunicipio>28079</codigoMunicipio>
+          <codigoPostal>28001</codigoPostal>
+          <pais>ESP</pais>
+        </direccion>
+        <telefono>+34600000001</telefono>
+      </persona>
+    </comunicacion>
+    <comunicacion>
+      <contrato>
+        <referencia>FICTICIO-0002</referencia>
+        <fechaContrato>2026-11-01</fechaContrato>
+        <fechaEntrada>2026-11-02T20:05:00</fechaEntrada>
+        <fechaSalida>2026-11-03T10:00:00</fechaSalida>
+        <numPersonas>1</numPersonas>
+        <pago>
+          <tipoPago>EFECT</tipoPago>
+        </pago>
+      </contrato>
+      <persona>
+        <rol>VI</rol>
+        <nombre>John</nombre>
+        <apellido1>Sample</apellido1>
+        <tipoDocumento>PAS</tipoDocumento>
+        <numeroDocumento>ZZ0000001</numeroDocumento>
+        <fechaNacimiento>1979-09-30</fechaNacimiento>
+        <nacionalidad>USA</nacionalidad>
+        <sexo>H</sexo>
+        <direccion>
+          <direccion>1 Example Street</direccion>
+          <codigoPostal>00000</codigoPostal>
+          <pais>USA</pais>
+        </direccion>
+        <correo>john@example.org</correo>
+      </persona>
+    </comunicacion>
+  </solicitud>
+</peticion>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FICTICIO: ejemplo inválido de la regla documento.sin-tipo (§3; §4): Número de documento con su tipo. Generado por scripts/generar_ejemplos.py; no son personas ni documentos reales. -->
+<!-- Reserva de hospedaje (§4, figura 2): una con código de establecimiento y otra con datosEstablecimiento. -->
+<peticion>
+  <solicitud>
+    <comunicacion>
+      <establecimiento>
+        <codigo>0000099999</codigo>
+      </establecimiento>
+      <contrato>
+        <referencia>FICTICIO-R-0001</referencia>
+        <fechaContrato>2026-10-01</fechaContrato>
+        <fechaEntrada>2026-12-20T00:00:00</fechaEntrada>
+        <fechaSalida>2026-12-27T00:00:00</fechaSalida>
+        <numPersonas>2</numPersonas>
+        <numHabitaciones>1</numHabitaciones>
+        <pago>
+          <tipoPago>PLATF</tipoPago>
+          <fechaPago>2026-10-01</fechaPago>
+        </pago>
+      </contrato>
+      <persona>
+        <rol>TI</rol>
+        <nombre>Ana</nombre>
+        <apellido1>Ficticia</apellido1>
+        <apellido2>Ejemplo</apellido2>
+        <numeroDocumento>X0000003A</numeroDocumento>
+        <fechaNacimiento>1990-01-31</fechaNacimiento>
+        <nacionalidad>FRA</nacionalidad>
+        <sexo>M</sexo>
+        <direccion>
+          <direccion>Avenida Inventada 7</direccion>
+          <codigoMunicipio>08019</codigoMunicipio>
+          <codigoPostal>08001</codigoPostal>
+          <pais>ESP</pais>
+        </direccion>
+        <correo>ana@example.com</correo>
+      </persona>
+      <persona>
+        <rol>VI</rol>
+        <nombre>Ana</nombre>
+        <apellido1>Ficticia</apellido1>
+        <telefono>+34600000003</telefono>
+      </persona>
+      <persona>
+        <rol>VI</rol>
+        <nombre>Pablo</nombre>
+        <apellido1>Ficticio</apellido1>
+        <telefono>+34600000004</telefono>
+      </persona>
+    </comunicacion>
+    <comunicacion>
+      <establecimiento>
+        <datosEstablecimiento>
+          <tipo>CASA_RURAL</tipo>
+          <nombre>Casa Rural Ficticia</nombre>
+          <direccion>
+            <direccion>Camino Inventado s/n</direccion>
+            <codigoMunicipio>44001</codigoMunicipio>
+            <codigoPostal>44001</codigoPostal>
+            <pais>ESP</pais>
+          </direccion>
+        </datosEstablecimiento>
+      </establecimiento>
+      <contrato>
+        <referencia>FICTICIO-R-0002</referencia>
+        <fechaContrato>2026-10-02</fechaContrato>
+        <fechaEntrada>2027-01-04T16:00:00</fechaEntrada>
+        <fechaSalida>2027-01-06T12:00:00</fechaSalida>
+        <numPersonas>1</numPersonas>
+        <pago>
+          <tipoPago>DESTI</tipoPago>
+        </pago>
+      </contrato>
+      <persona>
+        <rol>TI</rol>
+        <nombre>Bruno</nombre>
+        <apellido1>Inventado</apellido1>
+        <telefono>+34600000005</telefono>
+      </persona>
+    </comunicacion>
+  </solicitud>
+</peticion>

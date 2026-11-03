@@ -1,0 +1,15 @@
+{
+  "descripcion": "XML FICTICIOS generados por registro-viajeros (validadores del modelo + construirXml) con sus datos de prueba y de demo. No los edite a mano: regénerelos con scripts/registro_viajeros/generar.mjs.",
+  "repositorio": "https://github.com/danielbuitragoh/registro-viajeros",
+  "commit": "e1cc2139a97e438286e0295b63f5dcb2f867b860",
+  "fecha_fija": "2026-11-02T10:00:00.000Z",
+  "ficheros": {
+    "ficticio-parte-adulto-y-menor.xml": "e6eda195d1d787ee469a69e8eb81ff9c927d2e04a14ceb68bfcb9fc8cbd0232a",
+    "ficticio-parte-extranjero.xml": "13aec329b38f0ca034bb58d474b38a90bb8cc919c8c0f3f50cf03969effe4c42",
+    "ficticio-parte-varias-reservas.xml": "f541173b7b717685b000341467841c883374bda0be3cb39062c0698a556902f0",
+    "ficticio-parte-demo.xml": "fad511e2a1efbfa37ab90e4268babada2767c73b42e728de992873a575c14310",
+    "ficticio-reserva-titular-y-extranjero.xml": "919b9948e26d5a66e9c384464de811505193aa2097c49c8c24dfb91e8361f2ef",
+    "ficticio-reserva-sin-codigo-establecimiento.xml": "7f8b6dc6fab7662474c76e440d004c5d8f397c48a2cb9c24c71e9b672369d9c1",
+    "ficticio-reserva-demo.xml": "3f78c20509155ab94c3f7164241fd43fbdbe77ecbc1b8db8960aaad50addf6b4"
+  }
+}

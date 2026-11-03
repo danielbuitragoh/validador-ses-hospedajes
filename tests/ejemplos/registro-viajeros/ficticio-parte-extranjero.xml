@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<peticion>
+  <solicitud>
+    <codigoEstablecimiento>0000012345</codigoEstablecimiento>
+    <comunicacion>
+      <contrato>
+        <referencia>RES-2026-0001</referencia>
+        <fechaContrato>2026-10-20</fechaContrato>
+        <fechaEntrada>2026-11-02T15:00:00</fechaEntrada>
+        <fechaSalida>2026-11-05T11:00:00</fechaSalida>
+        <numPersonas>1</numPersonas>
+        <pago>
+          <tipoPago>EFECT</tipoPago>
+        </pago>
+      </contrato>
+      <persona>
+        <rol>VI</rol>
+        <nombre>John</nombre>
+        <apellido1>Smith</apellido1>
+        <tipoDocumento>PAS</tipoDocumento>
+        <numeroDocumento>123456789</numeroDocumento>
+        <fechaNacimiento>1979-09-30</fechaNacimiento>
+        <nacionalidad>USA</nacionalidad>
+        <sexo>H</sexo>
+        <direccion>
+          <direccion>1 Main Street</direccion>
+          <nombreMunicipio>Springfield</nombreMunicipio>
+          <codigoPostal>62701</codigoPostal>
+          <pais>USA</pais>
+        </direccion>
+        <correo>john@example.org</correo>
+      </persona>
+    </comunicacion>
+  </solicitud>
+</peticion>

@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    name: Pruebas (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Dependencias
+        run: uv sync --locked
+      - name: ruff (estilo y errores)
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+      - name: mypy --strict
+        run: uv run mypy
+      - name: pytest
+        run: uv run pytest
+
+  prueba-cruzada:
+    name: Prueba cruzada con registro-viajeros (en vivo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copia de registro-viajeros (solo lectura)
+        uses: actions/checkout@v4
+        with:
+          repository: danielbuitragoh/registro-viajeros
+          path: registro-viajeros
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - name: Regenerar sus XML y validarlos
+        env:
+          REGISTRO_VIAJEROS: ${{ github.workspace }}/registro-viajeros
+        run: uv run pytest tests/test_registro_viajeros.py -v -rs
+
+  paquete:
+    name: Paquete (sdist y wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv build
+      - name: Metadatos para PyPI
+        run: uvx twine check --strict dist/*
+      - name: El PDF oficial no se redistribuye en el paquete
+        run: |
+          ! tar -tzf dist/*.tar.gz | grep -i '\.pdf$'
+      - name: Instalar la wheel y probar el comando
+        run: |
+          uv venv /tmp/prueba
+          uv pip install --python /tmp/prueba dist/*.whl
+          /tmp/prueba/bin/ses-validar --version
+          /tmp/prueba/bin/ses-validar tests/ejemplos/validos

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FICTICIO: ejemplo inválido de la regla estructura.tipo-no-soportado (§5; §6): Solo partes de viajeros y reservas de hospedaje. Generado por scripts/generar_ejemplos.py; no son personas ni documentos reales. -->
+<peticion>
+  <solicitud>
+    <comunicacion>
+      <contrato><referencia>FICTICIO-V-1</referencia></contrato>
+      <vehiculo><categoria>FICTICIA</categoria></vehiculo>
+    </comunicacion>
+  </solicitud>
+</peticion>
