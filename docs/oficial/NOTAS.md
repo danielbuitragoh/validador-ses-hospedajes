@@ -59,7 +59,9 @@ condicionales). Donde figura y tabla coinciden, se aplica tal cual; donde discre
 ## Pendientes: lo que el documento NO deja claro
 
 Numeración compartida con registro-viajeros (P1–P17); los puntos propios del validador empiezan en P18.
-Ningún pendiente produce un **error**: como mucho, un **aviso**.
+Ningún pendiente produce por sí solo un **error**: como mucho, un **aviso**. Hay tres reglas que el documento sí
+establece y cuyo **cálculo** depende de un pendiente (documento obligatorio para mayores de edad y parentesco con
+menores, P6; `numPersonas` en partes, P8): son errores, y se aplica la interpretación más tolerante.
 
 | # | Lo que no dice el documento | Qué hace el validador |
 |---|-----------------------------|------------------------|

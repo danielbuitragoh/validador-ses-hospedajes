@@ -54,8 +54,8 @@ def test_texto_que_declara_otra_codificacion() -> None:
     assert [i.codigo for i in latin1.incidencias] == ["xml.codificacion"]
 
 
-def test_ruta_inexistente_lanza_oserror(tmp_path: Path) -> None:
-    with pytest.raises(OSError):
+def test_ruta_inexistente_lanza_file_not_found(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="no-existe"):
         validar(tmp_path / "no-existe.xml")
 
 
@@ -107,10 +107,22 @@ def test_a_dict_es_serializable_en_json_y_en_ingles() -> None:
     assert "is not a valid code" in en[0]["mensaje"]
 
 
+#: Reglas que el documento SÍ establece, pero cuyo cálculo depende de un pendiente: se aplica la interpretación más
+#: tolerante. P6: «mayor de edad» = 18 años en la fecha de entrada. P8: numPersonas puede contar o no al titular.
+ERRORES_CON_CALCULO_PENDIENTE = {"persona.documento-mayor", "persona.parentesco-menor", "contrato.num-personas"}
+
+
 def test_catalogo_de_reglas_coherente() -> None:
     for codigo, regla in REGLAS.items():
         assert regla.codigo == codigo
         assert regla.apartado
-        assert regla.descripcion_es and regla.descripcion_en
-        if regla.gravedad is Gravedad.ERROR:
-            assert regla.pendiente is None, f"{codigo}: un pendiente nunca debe producir un error"
+        assert regla.descripcion_es
+        assert regla.descripcion_en
+        if regla.gravedad is Gravedad.ERROR and codigo not in ERRORES_CON_CALCULO_PENDIENTE:
+            assert regla.pendiente is None, f"{codigo}: un pendiente nunca debe producir por sí solo un error"
+
+
+def test_los_errores_con_calculo_pendiente_existen() -> None:
+    for codigo in ERRORES_CON_CALCULO_PENDIENTE:
+        assert REGLAS[codigo].gravedad is Gravedad.ERROR
+        assert REGLAS[codigo].pendiente in ("P6", "P8")
