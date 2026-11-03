@@ -1,0 +1,367 @@
+"""Validación de ficheros de alta masiva (§3 partes de viajeros y §4 reservas de hospedaje).
+
+Fuente única de verdad: docs/oficial/Instrucciones.pdf (v1.1.0). Lo que el documento no define con claridad nunca
+produce un error, como mucho un aviso (ver ``reglas.py`` y docs/oficial/NOTAS.md).
+"""
+
+import os
+from collections import Counter
+from collections.abc import Iterator
+from pathlib import Path
+
+from . import documentos
+from .esquema import ESQUEMA_PARTES, ESQUEMA_RESERVAS, Bloque, Campo, Def, Tipo
+from .modelo import NOMBRE_TIPO, Incidencia, Informe, TipoComunicacion
+from .parseo import ErrorParseo, Limites, Nodo, codificacion_declarada, parsear
+from .reglas import REGLAS
+
+Entrada = bytes | str | os.PathLike[str]
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# API pública
+# --------------------------------------------------------------------------------------------------------------------
+
+
+def validar(
+    entrada: Entrada,
+    *,
+    tipo: TipoComunicacion | str | None = None,
+    limites: Limites | None = None,
+    origen: str | None = None,
+) -> Informe:
+    """Valida un fichero de alta masiva y devuelve un :class:`Informe`.
+
+    ``entrada`` puede ser:
+
+    - ``bytes``: el contenido del fichero, tal cual;
+    - ``str`` que empieza por ``<`` (tras espacios): el contenido XML como texto;
+    - cualquier otro ``str`` o un ``os.PathLike``: la ruta del fichero.
+
+    ``tipo`` fuerza el tipo de comunicación (``"partes"`` o ``"reservas"``); si se omite, se detecta.
+    Nunca accede a la red ni escribe nada.
+    """
+    limites = limites or Limites()
+    tipo_pedido = TipoComunicacion(tipo) if tipo is not None else None
+    if isinstance(entrada, bytes):
+        return validar_bytes(entrada, tipo=tipo_pedido, limites=limites, origen=origen)
+    if isinstance(entrada, str) and entrada.lstrip("﻿ \t\r\n").startswith("<"):
+        return _validar_texto(entrada, tipo_pedido, limites, origen)
+    return validar_fichero(entrada, tipo=tipo_pedido, limites=limites, origen=origen)
+
+
+def validar_fichero(
+    ruta: str | os.PathLike[str],
+    *,
+    tipo: TipoComunicacion | str | None = None,
+    limites: Limites | None = None,
+    origen: str | None = None,
+) -> Informe:
+    """Lee el fichero sin superar ``limites.max_bytes`` y lo valida. Lanza ``OSError`` si no se puede leer."""
+    limites = limites or Limites()
+    ruta = Path(ruta)
+    origen = origen if origen is not None else str(ruta)
+    tamano = ruta.stat().st_size
+    if tamano > limites.max_bytes:
+        return _informe_fallido(origen, "fichero.demasiado-grande", None, tamano=tamano, limite=limites.max_bytes)
+    with ruta.open("rb") as f:
+        datos = f.read(limites.max_bytes + 1)
+    return validar_bytes(datos, tipo=tipo, limites=limites, origen=origen)
+
+
+def validar_bytes(
+    datos: bytes,
+    *,
+    tipo: TipoComunicacion | str | None = None,
+    limites: Limites | None = None,
+    origen: str | None = None,
+) -> Informe:
+    """Valida el contenido de un fichero (bytes tal cual se subirían al portal)."""
+    return _validar_datos(datos, tipo, limites or Limites(), origen, codificacion_declarada(datos))
+
+
+def _validar_datos(
+    datos: bytes,
+    tipo: TipoComunicacion | str | None,
+    limites: Limites,
+    origen: str | None,
+    codificacion: str | None,
+) -> Informe:
+    tipo_pedido = TipoComunicacion(tipo) if tipo is not None else None
+    try:
+        raiz = parsear(datos, limites)
+    except ErrorParseo as e:
+        params: dict[str, str | int] = {"detalle": e.detalle, "limite": "", "tamano": len(datos)}
+        if e.codigo == "fichero.demasiado-grande":
+            params["limite"] = limites.max_bytes
+        elif e.codigo == "xml.demasiado-profundo":
+            params["limite"] = limites.max_profundidad
+        elif e.codigo == "xml.demasiados-elementos":
+            params["limite"] = limites.max_elementos
+        return _informe_fallido(origen, e.codigo, e.linea, **params)
+    v = _Validador(raiz, tipo_pedido)
+    v.ejecutar(codificacion)
+    return v.informe(origen)
+
+
+def _validar_texto(texto: str, tipo: TipoComunicacion | str | None, limites: Limites, origen: str | None) -> Informe:
+    """El texto ya está decodificado: se pasa a UTF-8 y, si la declaración XML dice otra codificación, se cambia
+    a UTF-8 para que el parser no lo decodifique dos veces. El aviso se basa en la declaración original."""
+    datos = texto.lstrip("\ufeff").encode("utf-8")
+    declarada = codificacion_declarada(datos)
+    if declarada and declarada.lower() not in ("utf-8", "utf8"):
+        datos = datos.replace(declarada.encode("ascii"), b"UTF-8", 1)
+    return _validar_datos(datos, tipo, limites, origen, declarada)
+
+
+def _informe_fallido(origen: str | None, codigo: str, linea: int | None, **params: str | int) -> Informe:
+    regla = REGLAS[codigo]
+    inc = Incidencia(codigo, regla.gravedad, "/", linea, regla.apartado, regla.pendiente, params)
+    return Informe(origen, None, 0, (inc,))
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# Utilidades sobre el árbol
+# --------------------------------------------------------------------------------------------------------------------
+
+
+def _hijos(nodo: Nodo, nombre: str) -> list[Nodo]:
+    return [h for h in nodo.hijos if h.nombre == nombre]
+
+
+def _hijo(nodo: Nodo, *nombres: str) -> Nodo | None:
+    for h in nodo.hijos:
+        if h.nombre in nombres:
+            return h
+    return None
+
+
+def _valor(nodo: Nodo | None, *nombres: str) -> str | None:
+    """Texto (sin espacios a los lados) del primer hijo con alguno de esos nombres; ``None`` si falta o vacío."""
+    if nodo is None:
+        return None
+    h = _hijo(nodo, *nombres)
+    if h is None or h.hijos:
+        return None
+    t = h.texto.strip()
+    return t or None
+
+
+def _recorrer(nodo: Nodo) -> Iterator[Nodo]:
+    yield nodo
+    for h in nodo.hijos:
+        yield from _recorrer(h)
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# Validador
+# --------------------------------------------------------------------------------------------------------------------
+
+
+class _Validador:
+    def __init__(self, raiz: Nodo, tipo_pedido: TipoComunicacion | None) -> None:
+        self.raiz = raiz
+        self.tipo_pedido = tipo_pedido
+        self.tipo: TipoComunicacion | None = None
+        self.incidencias: list[Incidencia] = []
+        self.comunicaciones: list[Nodo] = []
+
+    # -- infraestructura --------------------------------------------------------------------------------------------
+
+    def add(self, codigo: str, ruta: str, linea: int | None, apartado: str | None = None, **params: str | int) -> None:
+        regla = REGLAS[codigo]
+        self.incidencias.append(
+            Incidencia(codigo, regla.gravedad, ruta, linea, apartado or regla.apartado, regla.pendiente, params)
+        )
+
+    def informe(self, origen: str | None) -> Informe:
+        ordenadas = sorted(self.incidencias, key=lambda i: i.linea or 0)
+        return Informe(origen, self.tipo, len(self.comunicaciones), tuple(ordenadas))
+
+    # -- flujo ------------------------------------------------------------------------------------------------------
+
+    def ejecutar(self, codificacion: str | None) -> None:
+        if codificacion and codificacion.lower().replace("_", "-") not in ("utf-8", "utf8"):
+            self.add("xml.codificacion", "/", 1, codificacion=codificacion)
+        if self.raiz.nombre != "peticion":
+            self.add("estructura.raiz", f"/{self.raiz.nombre}", self.raiz.linea, elemento=self.raiz.nombre)
+            return
+        self._espacios_y_atributos()
+        tipo = self._detectar_tipo()
+        if tipo is None:
+            return
+        self.tipo = tipo
+        esquema = ESQUEMA_PARTES if tipo is TipoComunicacion.PARTES else ESQUEMA_RESERVAS
+        self._bloque(self.raiz, esquema, "/peticion")
+        solicitud = _hijo(self.raiz, "solicitud")
+        self.comunicaciones = _hijos(solicitud, "comunicacion") if solicitud else []
+        for i, com in enumerate(self.comunicaciones, start=1):
+            self._comunicacion(com, f"/peticion/solicitud/comunicacion[{i}]")
+
+    def _espacios_y_atributos(self) -> None:
+        espacio_avisado = atributos_avisados = False
+        for nodo in _recorrer(self.raiz):
+            if nodo.espacio and not espacio_avisado:
+                self.add("estructura.espacio-nombres", f"/{nodo.nombre}", nodo.linea, espacio=nodo.espacio)
+                espacio_avisado = True
+            if nodo.atributos and not atributos_avisados:
+                attrs = ", ".join(sorted(nodo.atributos))
+                self.add("estructura.atributos", f"/{nodo.nombre}", nodo.linea, elemento=nodo.nombre, atributos=attrs)
+                atributos_avisados = True
+
+    def _detectar_tipo(self) -> TipoComunicacion | None:
+        """§2: un solo tipo por fichero. Pistas: ``codigoEstablecimiento`` en ``solicitud`` (§3, figura 1),
+        ``establecimiento`` en ``comunicacion`` (§4, figura 2) y ``vehiculo`` (§5 y §6, figuras 3 y 4)."""
+        solicitud = _hijo(self.raiz, "solicitud")
+        pistas: set[str] = set()
+        if solicitud is not None:
+            if _hijo(solicitud, "codigoEstablecimiento") is not None:
+                pistas.add("partes")
+            for com in _hijos(solicitud, "comunicacion"):
+                if _hijo(com, "vehiculo") is not None:
+                    pistas.add("vehiculos")
+                elif _hijo(com, "establecimiento") is not None:
+                    pistas.add("reservas")
+        linea = solicitud.linea if solicitud is not None else self.raiz.linea
+        nombres = {
+            "partes": "partes de viajeros (§3)",
+            "reservas": "reservas de hospedaje (§4)",
+            "vehiculos": "vehículos (§5/§6)",
+        }
+        if len(pistas) > 1:
+            tipos = ", ".join(nombres[p] for p in sorted(pistas))
+            self.add("estructura.tipos-mezclados", "/peticion/solicitud", linea, tipos=tipos)
+            return None
+        if pistas == {"vehiculos"}:
+            self.add("estructura.tipo-no-soportado", "/peticion/solicitud", linea)
+            return None
+        detectado = TipoComunicacion(pistas.pop()) if pistas else None
+        if self.tipo_pedido is not None:
+            if detectado is not None and detectado is not self.tipo_pedido:
+                self.add(
+                    "estructura.tipo-distinto",
+                    "/peticion/solicitud",
+                    linea,
+                    pedido=NOMBRE_TIPO[self.tipo_pedido]["es"],
+                    detectado=NOMBRE_TIPO[detectado]["es"],
+                )
+                return None
+            return self.tipo_pedido
+        if detectado is None:
+            self.add("estructura.tipo-indeterminado", "/peticion/solicitud", linea)
+        return detectado
+
+    # -- estructura (figuras 1, 2, 5 y 6) ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _buscar(defn: Bloque, nombre: str) -> tuple[int, Def | None, bool]:
+        for i, d in enumerate(defn.hijos):
+            if d.nombre == nombre:
+                return i, d, False
+            if isinstance(d, Campo) and nombre in d.alias:
+                return i, d, True
+        return -1, None, False
+
+    def _bloque(self, nodo: Nodo, defn: Bloque, ruta: str) -> None:
+        if nodo.texto.strip():
+            self.add("estructura.texto-en-bloque", ruta, nodo.linea, defn.apartado, elemento=defn.nombre)
+        ultimo = -1
+        cuenta: Counter[str] = Counter()
+        for h in nodo.hijos:
+            i, d, por_alias = self._buscar(defn, h.nombre)
+            if d is None:
+                permitidos = ", ".join(x.nombre for x in defn.hijos)
+                self.add(
+                    "estructura.elemento-desconocido",
+                    f"{ruta}/{h.nombre}",
+                    h.linea,
+                    defn.apartado,
+                    elemento=h.nombre,
+                    padre=defn.nombre,
+                    permitidos=permitidos,
+                )
+                continue
+            cuenta[d.nombre] += 1
+            n = cuenta[d.nombre]
+            repetible = isinstance(d, Bloque) and d.repetible
+            sub = f"{ruta}/{h.nombre}[{n}]" if repetible else f"{ruta}/{h.nombre}"
+            if por_alias:
+                self.add("estructura.documento-alias", sub, h.linea, d.apartado)
+            if not defn.eleccion and i < ultimo:
+                despues = defn.hijos[ultimo].nombre
+                self.add("estructura.orden", sub, h.linea, defn.apartado, elemento=h.nombre, despues=despues)
+            ultimo = max(ultimo, i)
+            if n > 1 and not repetible:
+                self.add("estructura.duplicado", sub, h.linea, d.apartado, elemento=h.nombre)
+                continue
+            if isinstance(d, Bloque):
+                self._bloque(h, d, sub)
+            else:
+                self._campo(h, d, sub)
+        if defn.eleccion:
+            presentes = sum(1 for d in defn.hijos if cuenta[d.nombre])
+            if presentes != 1:
+                self.add("establecimiento.codigo-o-datos", ruta, nodo.linea, defn.apartado, presentes=presentes)
+            return
+        for d in defn.hijos:
+            if d.obligatorio and not cuenta[d.nombre]:
+                self.add(
+                    "estructura.falta",
+                    f"{ruta}/{d.nombre}",
+                    nodo.linea,
+                    d.apartado,
+                    elemento=d.nombre,
+                    padre=defn.nombre,
+                )
+
+    def _campo(self, nodo: Nodo, defn: Campo, ruta: str) -> None:
+        if nodo.hijos:
+            self.add("estructura.hijos-en-campo", ruta, nodo.linea, defn.apartado, elemento=defn.nombre)
+            return
+        valor = nodo.texto.strip()
+        if not valor:
+            codigo = "valor.vacio-obligatorio" if defn.obligatorio else "valor.vacio-opcional"
+            self.add(codigo, ruta, nodo.linea, defn.apartado, campo=defn.nombre)
+            return
+        self._valor(valor, nodo, defn, ruta)
+
+    def _valor(self, valor: str, nodo: Nodo, defn: Campo, ruta: str) -> None:
+        if defn.tipo is Tipo.BOOLEANO:
+            self.add("valor.booleano", ruta, nodo.linea, defn.apartado, campo=defn.nombre, valor=valor[:20])
+
+    # -- reglas por comunicación ------------------------------------------------------------------------------------
+
+    def _comunicacion(self, com: Nodo, base: str) -> None:
+        for pi, persona in enumerate(_hijos(com, "persona"), start=1):
+            self._documento(persona, f"{base}/persona[{pi}]")
+
+    def _documento(self, persona: Nodo, ruta: str) -> None:
+        """§3/§4: el número «deberá corresponder al tipo de documento … y tener un formato válido en el caso de
+        NIF o NIE» (letra de control)."""
+        ap = "§3" if self.tipo is TipoComunicacion.PARTES else "§4"
+        nombres = ("numeroDocumento", "documento") if self.tipo is TipoComunicacion.PARTES else ("numeroDocumento",)
+        tipo_doc = _valor(persona, "tipoDocumento")
+        numero = _valor(persona, *nombres)
+        nodo_num = _hijo(persona, *nombres)
+        if numero is None or nodo_num is None:
+            return
+        r_ruta = f"{ruta}/{nodo_num.nombre}"
+        if tipo_doc == "NIF":
+            r = documentos.validar_nif(numero)
+        elif tipo_doc == "NIE":
+            r = documentos.validar_nie(numero)
+        else:
+            return
+        if not r.valido:
+            motivo = r.motivo
+            if motivo is documentos.Motivo.LETRA:
+                self.add(
+                    "documento.letra", r_ruta, nodo_num.linea, f"{ap}; §8.5", tipo=tipo_doc, esperada=r.esperada or ""
+                )
+            elif motivo is documentos.Motivo.PARECE_NIE:
+                self.add("documento.nie-como-nif", r_ruta, nodo_num.linea, f"{ap}; §8.5")
+            elif motivo is documentos.Motivo.PARECE_DNI:
+                self.add("documento.nif-como-nie", r_ruta, nodo_num.linea, f"{ap}; §8.5")
+            else:
+                codigo = "documento.nif-formato" if tipo_doc == "NIF" else "documento.nie-formato"
+                self.add(codigo, r_ruta, nodo_num.linea, f"{ap}; §8.5")

@@ -1,9 +1,10 @@
 """Estructura y orden de elementos (figuras 1 y 2, §2: un solo tipo por fichero)."""
 
 import pytest
-from conftest import avisos, errores, informe, parte, quitar, reserva, sustituir
 
 from validador_ses_hospedajes import Gravedad, TipoComunicacion
+
+from ayudas import avisos, errores, informe, parte, quitar, reserva, sustituir
 
 
 def test_los_ejemplos_validos_no_tienen_incidencias() -> None:
@@ -58,7 +59,7 @@ def test_elemento_desconocido_con_ruta_y_linea() -> None:
     [inc] = inf.errores
     assert inc.codigo == "estructura.elemento-desconocido"
     assert inc.ruta == "/peticion/solicitud/comunicacion[1]/contrato/habitacion"
-    assert inc.linea == 12
+    assert inc.linea == 13
     assert inc.apartado.startswith("§3")
 
 
@@ -97,7 +98,7 @@ def test_obligatorios_de_persona_en_partes(etiqueta: str) -> None:
 
 
 def test_direccion_obligatoria_en_partes_y_opcional_en_reservas() -> None:
-    sin_direccion = sustituir(parte(), r"\n\s*<direccion>\s*<direccion>Calle.*?</direccion>\s*</direccion>", "")
+    sin_direccion = sustituir(parte(), r"\n\s*<direccion>\s*<direccion>Calle.*?</pais>\s*</direccion>", "")
     assert "estructura.falta" in errores(sin_direccion)
     sin_direccion = sustituir(reserva(), r"\n\s*<direccion>\s*<direccion>Avenida.*?</pais>\s*</direccion>", "")
     assert errores(sin_direccion) == set()
