@@ -1,7 +1,5 @@
 """Coherencias entre campos: fechas, número de personas y referencias. Datos FICTICIOS."""
 
-import pytest
-
 from ayudas import avisos, errores, informe, parte, reserva, sustituir
 
 
@@ -60,14 +58,20 @@ def test_nacimiento_posterior_a_la_entrada_avisa() -> None:
     assert avisos(xml) == {"persona.nacimiento-posterior"}
 
 
-@pytest.mark.parametrize("num", ["1", "3"])
-def test_num_personas_distinto_de_las_personas_del_parte(num: str) -> None:
-    xml = parte().replace("<numPersonas>2</numPersonas>", f"<numPersonas>{num}</numPersonas>")
+def test_mas_personas_en_el_parte_que_num_personas_es_error() -> None:
+    xml = parte().replace("<numPersonas>2</numPersonas>", "<numPersonas>1</numPersonas>")
     inf = informe(xml)
     [inc] = inf.errores
     assert inc.codigo == "contrato.num-personas"
     assert inc.ruta == "/peticion/solicitud/comunicacion[1]/contrato/numPersonas"
     assert "2 persona(s), 2 con rol VI" in inc.mensaje()
+
+
+def test_menos_personas_en_el_parte_que_num_personas_avisa() -> None:
+    # El documento no dice expresamente que haya que incluir un bloque por cada persona alojada (P28).
+    xml = parte().replace("<numPersonas>2</numPersonas>", "<numPersonas>3</numPersonas>")
+    assert errores(xml) == set()
+    assert avisos(xml) == {"contrato.num-personas-faltan"}
 
 
 def test_num_personas_admite_contar_o_no_al_titular_del_parte() -> None:

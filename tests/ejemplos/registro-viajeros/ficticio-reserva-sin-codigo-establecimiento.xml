@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<peticion>
+  <solicitud>
+    <comunicacion>
+      <establecimiento>
+        <datosEstablecimiento>
+          <tipo>HOSTAL</tipo>
+          <nombre>Hostal Demo</nombre>
+          <direccion>
+            <direccion>Calle Inventada 7</direccion>
+            <codigoMunicipio>28079</codigoMunicipio>
+            <codigoPostal>28004</codigoPostal>
+            <pais>ESP</pais>
+          </direccion>
+        </datosEstablecimiento>
+      </establecimiento>
+      <contrato>
+        <referencia>RES-2026-0001</referencia>
+        <fechaContrato>2026-10-20</fechaContrato>
+        <fechaEntrada>2026-11-02T15:00:00</fechaEntrada>
+        <fechaSalida>2026-11-05T11:00:00</fechaSalida>
+        <numPersonas>1</numPersonas>
+        <pago>
+          <tipoPago>EFECT</tipoPago>
+        </pago>
+      </contrato>
+      <persona>
+        <rol>TI</rol>
+        <nombre>Lucía</nombre>
+        <apellido1>Prueba</apellido1>
+        <apellido2>Ejemplo</apellido2>
+        <tipoDocumento>NIF</tipoDocumento>
+        <numeroDocumento>12345678Z</numeroDocumento>
+        <fechaNacimiento>1985-04-12</fechaNacimiento>
+        <nacionalidad>ESP</nacionalidad>
+        <sexo>M</sexo>
+        <direccion>
+          <direccion>Calle Falsa 123</direccion>
+          <codigoMunicipio>28079</codigoMunicipio>
+          <codigoPostal>28001</codigoPostal>
+          <pais>ESP</pais>
+        </direccion>
+        <telefono>+34600123456</telefono>
+        <correo>lucia@example.com</correo>
+      </persona>
+      <persona>
+        <rol>VI</rol>
+        <nombre>Lucía</nombre>
+        <apellido1>Prueba</apellido1>
+        <apellido2>Ejemplo</apellido2>
+        <tipoDocumento>NIF</tipoDocumento>
+        <numeroDocumento>12345678Z</numeroDocumento>
+        <fechaNacimiento>1985-04-12</fechaNacimiento>
+        <nacionalidad>ESP</nacionalidad>
+        <sexo>M</sexo>
+        <direccion>
+          <direccion>Calle Falsa 123</direccion>
+          <codigoMunicipio>28079</codigoMunicipio>
+          <codigoPostal>28001</codigoPostal>
+          <pais>ESP</pais>
+        </direccion>
+        <telefono>+34600123456</telefono>
+        <correo>lucia@example.com</correo>
+      </persona>
+    </comunicacion>
+  </solicitud>
+</peticion>

@@ -175,7 +175,10 @@ MUTACIONES: dict[str, Mutacion] = {
     "contrato.salida-igual": lambda: cambiar(PARTE, "2026-11-05T11:00:00", "2026-11-02T15:30:00"),
     "contrato.contrato-posterior": lambda: cambiar(PARTE, "<fechaContrato>2026-10-20", "<fechaContrato>2026-11-03"),
     "contrato.hora-cero-parte": lambda: cambiar(PARTE, "2026-11-02T15:30:00", "2026-11-02T00:00:00"),
-    "contrato.num-personas": lambda: cambiar(PARTE, "<numPersonas>2</numPersonas>", "<numPersonas>3</numPersonas>"),
+    "contrato.num-personas": lambda: cambiar(PARTE, "<numPersonas>2</numPersonas>", "<numPersonas>1</numPersonas>"),
+    "contrato.num-personas-faltan": lambda: cambiar(
+        PARTE, "<numPersonas>2</numPersonas>", "<numPersonas>3</numPersonas>"
+    ),
     "contrato.num-personas-reserva": lambda: cambiar(
         RESERVA, "<numPersonas>2</numPersonas>", "<numPersonas>1</numPersonas>"
     ),

@@ -477,10 +477,17 @@ _LISTA: Final[tuple[Regla, ...]] = (
     ),
     Regla(
         "contrato.num-personas", E, "§3",
-        "«numPersonas» coincide con las personas alojadas", "'numPersonas' matches the people staying",
+        "No más personas que «numPersonas»", "No more people than 'numPersonas'",
         "«numPersonas» vale {num}, pero la comunicación incluye {total} persona(s), {vi} con rol VI.",
         "'numPersonas' is {num}, but the communication includes {total} person(s), {vi} with role VI.",
         "P8",
+    ),
+    Regla(
+        "contrato.num-personas-faltan", A, "§3",
+        "Una persona por cada alojado declarado", "One person per declared guest",
+        "«numPersonas» vale {num}, pero la comunicación solo incluye {total} persona(s). ¿Falta alguna por incluir?",
+        "'numPersonas' is {num}, but the communication only includes {total} person(s). Is anyone missing?",
+        "P28",
     ),
     Regla(
         "contrato.num-personas-reserva", A, "§4",

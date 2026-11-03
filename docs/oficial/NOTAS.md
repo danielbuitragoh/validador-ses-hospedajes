@@ -71,7 +71,7 @@ menores, P6; `numPersonas` en partes, P8): son errores, y se aplica la interpret
 | P4 | No incluye la tabla de municipios del INE ni la de países (solo cita «INE, 5 dígitos» e «ISO 3166-1 Alfa-3»). | INE: solo formato (5 dígitos). País: formato y pertenencia a la lista ISO 3166-1 alfa-3 (norma citada, no incluida en el PDF; revisar vigencia). |
 | P6 | No define **cuándo es «mayor de edad»** ni respecto a qué fecha. | 18 años cumplidos en la fecha de entrada. |
 | P7 | `parentesco` es un único campo por persona: no dice con qué menor se relaciona si hay varios. | Exige el parentesco en al menos un adulto (lo que sí dice); **aviso** si hay varios menores o si el parentesco está en un menor. |
-| P8 | No dice si el titular que también se aloja se repite (TI + VI), ni si el TI cuenta en `numPersonas`. | Parte: `numPersonas` debe coincidir con el total de personas **o** con las de rol VI. Reserva: **aviso** si hay más VI que `numPersonas` o más de un TI. |
+| P8 | No dice si el titular que también se aloja se repite (TI + VI), ni si el TI cuenta en `numPersonas`. | Parte: error si hay más personas con rol VI que `numPersonas` (cuente o no al TI). Reserva: **aviso** si hay más VI que `numPersonas` o más de un TI. |
 | P9 | No define el formato del teléfono; del correo solo pide «formato válido». | Teléfono: **aviso** si lleva caracteres que no sean cifras, espacios, `+ ( ) - .`. Correo: comprobación básica `algo@dominio.ext` (error). |
 | P10 | No define el formato del número de soporte ni de los pasaportes. | Soporte: longitud ≤ 9 (error) y **aviso** si no es alfanumérico. Pasaporte y OTRO: solo longitud. |
 | P15 | «Código INE, 5 dígitos» no aclara si incluye el dígito de control del INE. | 5 dígitos exactos (provincia + municipio, sin dígito de control). |
@@ -87,6 +87,7 @@ menores, P6; `numPersonas` en partes, P8): son errores, y se aplica la interpret
 | P25 | No dice si el número de documento admite minúsculas, espacios o guiones. | Si solo es válido tras normalizarlo, **aviso** (escríbalo en mayúsculas y sin separadores). |
 | P26 | «Deberá corresponder al tipo de documento»: solo se puede comprobar para NIF y NIE. | **Aviso** si con PAS u OTRO se escribe un DNI o NIE válido. |
 | P27 | No dice qué hacer con un tipo de documento sin número (o al revés) cuando no son obligatorios. | Número sin tipo: error (no puede «corresponder» a nada). Tipo sin número: **aviso**. |
+| P28 | En partes, no dice expresamente que haya que incluir un bloque `persona` por cada persona alojada declarada en `numPersonas` (registro-viajeros también lo deja pasar con un aviso). | **Aviso** si hay menos personas que `numPersonas`. |
 
 ## Fuera del alcance del documento (y de esta herramienta)
 

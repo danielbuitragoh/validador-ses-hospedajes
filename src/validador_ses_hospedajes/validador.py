@@ -485,8 +485,11 @@ class _Validador:
         if partes:
             # §3: numPersonas es el «número de personas alojadas» y cada bloque persona es «una persona alojada».
             # PENDIENTE-OFICIAL (P8): se acepta que cuente todas las personas o solo las de rol VI.
-            if num not in (total, vi):
+            if vi > num:
                 self.add("contrato.num-personas", ruta, nodo.linea, num=num, total=total, vi=vi)
+            elif total < num:
+                # PENDIENTE-OFICIAL (P28): el documento no dice expresamente que haya un bloque por cada alojado.
+                self.add("contrato.num-personas-faltan", ruta, nodo.linea, num=num, total=total)
         elif vi > num:
             # §4: «tantos bloques como información de viajeros se disponga»: menos VI es normal; más, no.
             self.add("contrato.num-personas-reserva", ruta, nodo.linea, num=num, vi=vi)
