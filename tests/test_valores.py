@@ -9,7 +9,7 @@ def cambiar(xml: str, etiqueta: str, valor: str, veces: int = 1) -> str:
     return sustituir(xml, rf"<{etiqueta}>[^<]*</{etiqueta}>", f"<{etiqueta}>{valor}</{etiqueta}>", veces)
 
 
-# --- vacíos ----------------------------------------------------------------------------------------------------------
+# --- vacíos ---
 
 
 def test_obligatorio_vacio_es_error() -> None:
@@ -29,7 +29,7 @@ def test_los_espacios_alrededor_no_cuentan() -> None:
     assert informe(cambiar(parte(), "tipoPago", "  TARJT \n ")).incidencias == ()
 
 
-# --- longitudes String(n) ---------------------------------------------------------------------------------------------
+# --- longitudes String(n) ---
 
 
 @pytest.mark.parametrize(
@@ -114,7 +114,7 @@ def test_fecha_hora_con_zona_o_milisegundos_no_es_el_formato_oficial() -> None:
     assert "valor.fecha-hora" in errores(cambiar(parte(), "fechaSalida", "2026-11-05T11:00:00.000"))
 
 
-# --- numéricos y booleano ---------------------------------------------------------------------------------------------
+# --- numéricos y booleano ---
 
 
 @pytest.mark.parametrize("valor", ["dos", "2 personas", "", "1e3"])
@@ -129,7 +129,7 @@ def test_numerico_no_entero_positivo_es_aviso(valor: str) -> None:
     assert "valor.numerico" not in errores(cambiar(parte(), "numHabitaciones", valor))
 
 
-# --- códigos de las tablas del §8 -------------------------------------------------------------------------------------
+# --- códigos de las tablas del §8 ---
 
 
 @pytest.mark.parametrize(

@@ -22,6 +22,9 @@ from .reglas import REGLAS
 
 Entrada = bytes | str | os.PathLike[str]
 
+#: PENDIENTE-OFICIAL (P6): el documento no define «mayor de edad»; 18 años (mayoría de edad en España).
+MAYORIA_DE_EDAD: Final = 18
+
 # [0-9] y no \d: \d admite cifras Unicode (p. ej. «２０２６»), que el formato oficial no contempla.
 _RE_FECHA: Final = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})")
 _RE_FECHA_HORA: Final = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})")
@@ -405,10 +408,76 @@ class _Validador:
     # -- reglas por comunicación ------------------------------------------------------------------------------------
 
     def _comunicacion(self, com: Nodo, base: str) -> None:
+        partes = self.tipo is TipoComunicacion.PARTES
+        ap = "§3" if partes else "§4"
+        contrato = _hijo(com, "contrato")
+        entrada = _valor(contrato, "fechaEntrada")
+        fecha_ref = date.fromisoformat(entrada[:10]) if entrada and es_fecha_hora(entrada) else None
+
         for ruta, direccion in self._direcciones(com, base):
             self._direccion(direccion, ruta)
-        for pi, persona in enumerate(_hijos(com, "persona"), start=1):
-            self._documento(persona, f"{base}/persona[{pi}]")
+
+        personas = _hijos(com, "persona")
+        menores = 0
+        adultos_con_parentesco = 0
+        for pi, persona in enumerate(personas, start=1):
+            ruta = f"{base}/persona[{pi}]"
+            self._contacto(persona, ruta, ap)
+            adulto = self._es_adulto(persona, fecha_ref)
+            self._documento(persona, ruta, ap, adulto)
+            if partes:
+                tiene_parentesco = _valor(persona, "parentesco") is not None
+                if adulto is False:
+                    menores += 1
+                    if tiene_parentesco:
+                        nodo = _hijo(persona, "parentesco")
+                        linea = nodo.linea if nodo else persona.linea
+                        self.add("persona.parentesco-en-menor", f"{ruta}/parentesco", linea, ap)
+                elif adulto and tiene_parentesco:
+                    adultos_con_parentesco += 1
+
+        if partes and menores:
+            # §3 (aclaración v1.1.0): «al menos una de las personas mayores de edad ha de tener informada su relación
+            # de parentesco con esta persona menor de edad».
+            if not adultos_con_parentesco:
+                self.add("persona.parentesco-menor", base, com.linea, ap, menores=menores)
+            if menores > 1:
+                # PENDIENTE-OFICIAL (P7): un solo campo por persona, sin indicar a qué menor se refiere.
+                self.add("persona.parentesco-varios-menores", base, com.linea, ap, menores=menores)
+        if personas:
+            self._roles(personas, base, com.linea, partes)
+
+    def _roles(self, personas: list[Nodo], base: str, linea: int, partes: bool) -> None:
+        roles = [_valor(p, "rol") for p in personas]
+        if partes:
+            # §3: «Será obligatorio indicar al menos un bloque de este tipo con rol VI – viajero».
+            if "VI" not in roles:
+                self.add("comunicacion.sin-viajero", f"{base}/persona", linea, "§3")
+            return
+        # §4: «Se deberá incluir un bloque de este tipo con la información del titular del contrato».
+        titulares = roles.count("TI")
+        if titulares == 0:
+            self.add("comunicacion.sin-titular", f"{base}/persona", linea, "§4")
+        elif titulares > 1:
+            # PENDIENTE-OFICIAL (P8).
+            self.add("comunicacion.varios-titulares", f"{base}/persona", linea, "§4", num=titulares)
+
+    def _contacto(self, persona: Nodo, ruta: str, ap: str) -> None:
+        """§3/§4: «Obligatorio incluir una de estas tres etiquetas: telefono, telefono2 o correo»."""
+        if not any(_valor(persona, n) for n in ("telefono", "telefono2", "correo")):
+            self.add("persona.contacto", ruta, persona.linea, ap)
+
+    def _es_adulto(self, persona: Nodo, fecha_ref: date | None) -> bool | None:
+        """PENDIENTE-OFICIAL (P6): «mayor de edad» = 18 años cumplidos en la fecha de entrada.
+        ``None`` si no se puede calcular."""
+        nacimiento = _valor(persona, "fechaNacimiento")
+        if fecha_ref is None or nacimiento is None or not es_fecha(nacimiento):
+            return None
+        n = date.fromisoformat(nacimiento)
+        if n > fecha_ref:
+            return None
+        edad = fecha_ref.year - n.year - ((fecha_ref.month, fecha_ref.day) < (n.month, n.day))
+        return edad >= MAYORIA_DE_EDAD
 
     @staticmethod
     def _direcciones(com: Nodo, base: str) -> list[tuple[str, Nodo]]:
@@ -427,6 +496,15 @@ class _Validador:
         cp = _valor(d, "codigoPostal")
         ine = _valor(d, "codigoMunicipio")
         nodo_cp = _hijo(d, "codigoPostal")
+        if pais == PAIS_ESPANA and not ine:
+            self.add("direccion.municipio-espana", f"{ruta}/codigoMunicipio", d.linea)
+        elif pais and pais != PAIS_ESPANA:
+            if not _valor(d, "nombreMunicipio"):
+                self.add("direccion.municipio-extranjero", f"{ruta}/nombreMunicipio", d.linea)
+            if ine:
+                nodo_ine = _hijo(d, "codigoMunicipio")
+                linea = nodo_ine.linea if nodo_ine else d.linea
+                self.add("direccion.ine-fuera-espana", f"{ruta}/codigoMunicipio", linea)
         if pais == PAIS_ESPANA and cp and nodo_cp is not None:
             # PENDIENTE-OFICIAL (P23): el documento solo dice String(20); en España el código postal tiene 5 cifras
             # y sus dos primeras son las de la provincia, como en el código del INE.
@@ -435,33 +513,64 @@ class _Validador:
             elif ine and _RE_INE.fullmatch(ine) and cp[:2] != ine[:2]:
                 self.add("direccion.cp-provincia", f"{ruta}/codigoPostal", nodo_cp.linea, cp=cp[:2], ine=ine[:2])
 
-    def _documento(self, persona: Nodo, ruta: str) -> None:
-        """§3/§4: el número «deberá corresponder al tipo de documento … y tener un formato válido en el caso de
-        NIF o NIE» (letra de control)."""
-        ap = "§3" if self.tipo is TipoComunicacion.PARTES else "§4"
-        nombres = ("numeroDocumento", "documento") if self.tipo is TipoComunicacion.PARTES else ("numeroDocumento",)
+    def _documento(self, persona: Nodo, ruta: str, ap: str, adulto: bool | None) -> None:
+        """Documento de identidad: §3 (condicionales) y §3/§4 (el número «deberá corresponder al tipo de documento …
+        y tener un formato válido en el caso de NIF o NIE»)."""
+        partes = self.tipo is TipoComunicacion.PARTES
+        nombres = ("numeroDocumento", "documento") if partes else ("numeroDocumento",)
         tipo_doc = _valor(persona, "tipoDocumento")
         numero = _valor(persona, *nombres)
         nodo_num = _hijo(persona, *nombres)
-        if numero is None or nodo_num is None:
+        ruta_num = f"{ruta}/{nodo_num.nombre if nodo_num else 'numeroDocumento'}"
+        linea_num = nodo_num.linea if nodo_num else persona.linea
+
+        if partes:
+            if tipo_doc == "NIF" and _valor(persona, "apellido2") is None:
+                nodo = _hijo(persona, "apellido2")
+                self.add("persona.apellido2-nif", f"{ruta}/apellido2", (nodo or persona).linea, ap)
+            if tipo_doc in ("NIF", "NIE") and _valor(persona, "soporteDocumento") is None:
+                nodo = _hijo(persona, "soporteDocumento")
+                self.add(
+                    "persona.soporte-nif-nie", f"{ruta}/soporteDocumento", (nodo or persona).linea, ap, tipo=tipo_doc
+                )
+            if adulto and (tipo_doc is None or numero is None):
+                falta = "tipoDocumento" if tipo_doc is None else nodo_num.nombre if nodo_num else "numeroDocumento"
+                self.add("persona.documento-mayor", f"{ruta}/{falta}", persona.linea, ap)
+                return
+
+        if numero is not None and tipo_doc is None:
+            self.add("documento.sin-tipo", ruta_num, linea_num, ap)
             return
-        r_ruta = f"{ruta}/{nodo_num.nombre}"
+        if tipo_doc is not None and numero is None:
+            nodo = _hijo(persona, "tipoDocumento")
+            self.add("documento.sin-numero", f"{ruta}/tipoDocumento", (nodo or persona).linea, ap)
+            return
+        if tipo_doc is None or numero is None:
+            return
+        apd = f"{ap}; §8.5"
+        if tipo_doc in ("PAS", "OTRO"):
+            # PENDIENTE-OFICIAL (P26): solo se puede comprobar que no sea, en realidad, un DNI o NIE.
+            if documentos.parece_dni_o_nie_valido(numero):
+                self.add("documento.tipo-no-corresponde", ruta_num, linea_num, ap, tipo=tipo_doc)
+            return
         if tipo_doc == "NIF":
             r = documentos.validar_nif(numero)
         elif tipo_doc == "NIE":
             r = documentos.validar_nie(numero)
         else:
+            return  # código fuera de la tabla 8.5: ya es un error de valor
+        if r.valido:
+            if r.normalizable:
+                self.add("documento.normalizable", ruta_num, linea_num, ap)  # P25
+            if r.sin_verificar:
+                self.add("documento.nif-sin-verificar", ruta_num, linea_num, apd)  # P24
             return
-        if not r.valido:
-            motivo = r.motivo
-            if motivo is documentos.Motivo.LETRA:
-                self.add(
-                    "documento.letra", r_ruta, nodo_num.linea, f"{ap}; §8.5", tipo=tipo_doc, esperada=r.esperada or ""
-                )
-            elif motivo is documentos.Motivo.PARECE_NIE:
-                self.add("documento.nie-como-nif", r_ruta, nodo_num.linea, f"{ap}; §8.5")
-            elif motivo is documentos.Motivo.PARECE_DNI:
-                self.add("documento.nif-como-nie", r_ruta, nodo_num.linea, f"{ap}; §8.5")
-            else:
-                codigo = "documento.nif-formato" if tipo_doc == "NIF" else "documento.nie-formato"
-                self.add(codigo, r_ruta, nodo_num.linea, f"{ap}; §8.5")
+        if r.motivo is documentos.Motivo.LETRA:
+            self.add("documento.letra", ruta_num, linea_num, apd, tipo=tipo_doc, esperada=r.esperada or "")
+        elif r.motivo is documentos.Motivo.PARECE_NIE:
+            self.add("documento.nie-como-nif", ruta_num, linea_num, apd)
+        elif r.motivo is documentos.Motivo.PARECE_DNI:
+            self.add("documento.nif-como-nie", ruta_num, linea_num, apd)
+        else:
+            codigo = "documento.nif-formato" if tipo_doc == "NIF" else "documento.nie-formato"
+            self.add(codigo, ruta_num, linea_num, apd)

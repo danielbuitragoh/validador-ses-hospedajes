@@ -22,7 +22,7 @@ def lucia(xml: str, buscar: str, poner: str) -> str:
     return xml[:inicio] + sustituir(xml[inicio:fin], buscar, poner) + xml[fin:]
 
 
-# --- §3: segundo apellido y soporte ------------------------------------------------------------------------------------
+# --- §3: segundo apellido y soporte ---
 
 
 def test_apellido2_obligatorio_con_nif_en_partes() -> None:
@@ -60,7 +60,7 @@ def test_soporte_obligatorio_con_nie() -> None:
     assert "NIE" in inf.errores[0].mensaje()
 
 
-# --- §3: documento obligatorio si es mayor de edad (P6: 18 años en la fecha de entrada) ---------------------------------
+# --- §3: documento obligatorio si es mayor de edad (P6: 18 años en la fecha de entrada) ---
 
 
 def test_adulto_sin_documento_en_partes() -> None:
@@ -99,7 +99,7 @@ def test_numero_de_documento_sin_tipo() -> None:
     assert errores(xml) == {"documento.sin-tipo"}
 
 
-# --- §3/§4: formato del NIF y del NIE (letra de control) ----------------------------------------------------------------
+# --- §3/§4: formato del NIF y del NIE (letra de control) ---
 
 
 @pytest.mark.parametrize(
@@ -155,7 +155,7 @@ def test_pasaporte_con_numero_de_dni_avisa() -> None:
     assert avisos(xml) == {"documento.tipo-no-corresponde"}
 
 
-# --- §3: parentesco cuando hay menores (aclaración de la v1.1.0) -------------------------------------------------------
+# --- §3: parentesco cuando hay menores (aclaración de la v1.1.0) ---
 
 
 def test_menor_sin_ningun_adulto_con_parentesco() -> None:
@@ -184,7 +184,7 @@ def test_varios_menores_avisa() -> None:
     assert avisos(xml) == {"persona.parentesco-varios-menores"}
 
 
-# --- §3/§4: al menos un medio de contacto ---------------------------------------------------------------------------------
+# --- §3/§4: al menos un medio de contacto ---
 
 
 def test_sin_telefono_ni_correo() -> None:
@@ -202,7 +202,7 @@ def test_basta_con_telefono2() -> None:
     assert errores(xml) == set()
 
 
-# --- §7.1: municipio según el país ----------------------------------------------------------------------------------------
+# --- §7.1: municipio según el país ---
 
 
 def test_espana_sin_codigo_de_municipio() -> None:
@@ -236,7 +236,7 @@ def test_direccion_del_establecimiento() -> None:
     assert "/establecimiento/datosEstablecimiento/direccion" in inc.ruta
 
 
-# --- §3/§4: roles TI y VI -------------------------------------------------------------------------------------------------
+# --- §3/§4: roles TI y VI ---
 
 
 def test_parte_sin_ningun_viajero_vi() -> None:
