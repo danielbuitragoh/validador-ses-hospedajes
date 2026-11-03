@@ -25,7 +25,9 @@ def sin_red(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[object]]:
 
 
 def test_construye_el_arbol_con_numeros_de_linea() -> None:
-    raiz = parsear(b'<?xml version="1.0" encoding="UTF-8"?>\n<peticion>\n  <solicitud>\n    <a>x</a>\n  </solicitud>\n</peticion>')
+    raiz = parsear(
+        b'<?xml version="1.0" encoding="UTF-8"?>\n<peticion>\n  <solicitud>\n    <a>x</a>\n  </solicitud>\n</peticion>'
+    )
     assert raiz.nombre == "peticion"
     assert raiz.linea == 2
     solicitud = raiz.hijos[0]
