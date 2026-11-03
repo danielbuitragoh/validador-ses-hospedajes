@@ -148,7 +148,7 @@ def _validar_datos(
 def _validar_texto(texto: str, tipo: TipoComunicacion | str | None, limites: Limites, origen: str | None) -> Informe:
     """El texto ya está decodificado: se pasa a UTF-8 y, si la declaración XML dice otra codificación, se cambia
     a UTF-8 para que el parser no lo decodifique dos veces. El aviso se basa en la declaración original."""
-    datos = texto.lstrip("\ufeff").encode("utf-8")
+    datos = texto.lstrip("\ufeff \t\r\n").encode("utf-8")
     declarada = codificacion_declarada(datos)
     if declarada and declarada.lower() not in ("utf-8", "utf8"):
         datos = datos.replace(declarada.encode("ascii"), b"UTF-8", 1)
@@ -238,6 +238,7 @@ class _Validador:
         self.comunicaciones = _hijos(solicitud, "comunicacion") if solicitud else []
         for i, com in enumerate(self.comunicaciones, start=1):
             self._comunicacion(com, f"/peticion/solicitud/comunicacion[{i}]")
+        self._referencias()
 
     def _espacios_y_atributos(self) -> None:
         espacio_avisado = atributos_avisados = False
@@ -414,6 +415,9 @@ class _Validador:
         entrada = _valor(contrato, "fechaEntrada")
         fecha_ref = date.fromisoformat(entrada[:10]) if entrada and es_fecha_hora(entrada) else None
 
+        if contrato is not None:
+            self._fechas_contrato(contrato, f"{base}/contrato", partes)
+
         for ruta, direccion in self._direcciones(com, base):
             self._direccion(direccion, ruta)
 
@@ -423,7 +427,7 @@ class _Validador:
         for pi, persona in enumerate(personas, start=1):
             ruta = f"{base}/persona[{pi}]"
             self._contacto(persona, ruta, ap)
-            adulto = self._es_adulto(persona, fecha_ref)
+            adulto = self._es_adulto(persona, fecha_ref, ruta)
             self._documento(persona, ruta, ap, adulto)
             if partes:
                 tiene_parentesco = _valor(persona, "parentesco") is not None
@@ -446,6 +450,68 @@ class _Validador:
                 self.add("persona.parentesco-varios-menores", base, com.linea, ap, menores=menores)
         if personas:
             self._roles(personas, base, com.linea, partes)
+            if contrato is not None:
+                self._num_personas(contrato, personas, f"{base}/contrato/numPersonas", partes)
+
+    def _fechas_contrato(self, contrato: Nodo, ruta: str, partes: bool) -> None:
+        nodos = {n: _hijo(contrato, n) for n in ("fechaContrato", "fechaEntrada", "fechaSalida")}
+        valores = {n: _valor(contrato, n) for n in nodos}
+        entrada, salida, firma = valores["fechaEntrada"], valores["fechaSalida"], valores["fechaContrato"]
+        nodo_salida, nodo_firma = nodos["fechaSalida"], nodos["fechaContrato"]
+        entrada_ok = entrada if entrada and es_fecha_hora(entrada) else None
+        if entrada_ok and salida and es_fecha_hora(salida) and nodo_salida is not None:
+            # Formato fijo AAAA-MM-DDThh:mm:ss: la comparación de cadenas es cronológica.
+            if salida < entrada_ok:
+                self.add("contrato.salida-anterior", f"{ruta}/fechaSalida", nodo_salida.linea)
+            elif salida == entrada_ok:
+                self.add("contrato.salida-igual", f"{ruta}/fechaSalida", nodo_salida.linea)  # P23
+        if entrada_ok and firma and es_fecha(firma) and nodo_firma is not None and firma > entrada_ok[:10]:
+            self.add("contrato.contrato-posterior", f"{ruta}/fechaContrato", nodo_firma.linea)  # P23
+        if partes:
+            # PENDIENTE-OFICIAL (P20): «Si se desconoce la hora … enviar T00:00:00» solo figura en el §4.
+            for n in ("fechaEntrada", "fechaSalida"):
+                v, nodo = valores[n], nodos[n]
+                if v and nodo is not None and es_fecha_hora(v) and v.endswith("T00:00:00"):
+                    self.add("contrato.hora-cero-parte", f"{ruta}/{n}", nodo.linea, campo=n)
+
+    def _num_personas(self, contrato: Nodo, personas: list[Nodo], ruta: str, partes: bool) -> None:
+        nodo = _hijo(contrato, "numPersonas")
+        valor = _valor(contrato, "numPersonas")
+        if nodo is None or valor is None or not _RE_ENTERO.fullmatch(valor):
+            return
+        num = int(valor)
+        total = len(personas)
+        vi = sum(1 for p in personas if _valor(p, "rol") == "VI")
+        if partes:
+            # §3: numPersonas es el «número de personas alojadas» y cada bloque persona es «una persona alojada».
+            # PENDIENTE-OFICIAL (P8): se acepta que cuente todas las personas o solo las de rol VI.
+            if num not in (total, vi):
+                self.add("contrato.num-personas", ruta, nodo.linea, num=num, total=total, vi=vi)
+        elif vi > num:
+            # §4: «tantos bloques como información de viajeros se disponga»: menos VI es normal; más, no.
+            self.add("contrato.num-personas-reserva", ruta, nodo.linea, num=num, vi=vi)
+
+    def _referencias(self) -> None:
+        """PENDIENTE-OFICIAL (P22): el documento no exige referencias únicas; se avisa si se repiten."""
+        vistas: dict[str, list[int]] = {}
+        nodos: dict[int, Nodo] = {}
+        for i, com in enumerate(self.comunicaciones, start=1):
+            contrato = _hijo(com, "contrato")
+            ref = _valor(contrato, "referencia")
+            nodo = _hijo(contrato, "referencia") if contrato is not None else None
+            if ref is not None and nodo is not None:
+                vistas.setdefault(ref, []).append(i)
+                nodos[i] = nodo
+        for ref, posiciones in vistas.items():
+            if len(posiciones) > 1:
+                segunda = posiciones[1]
+                self.add(
+                    "solicitud.referencia-duplicada",
+                    f"/peticion/solicitud/comunicacion[{segunda}]/contrato/referencia",
+                    nodos[segunda].linea,
+                    referencia=ref[:50],
+                    posiciones=", ".join(map(str, posiciones)),
+                )
 
     def _roles(self, personas: list[Nodo], base: str, linea: int, partes: bool) -> None:
         roles = [_valor(p, "rol") for p in personas]
@@ -467,7 +533,7 @@ class _Validador:
         if not any(_valor(persona, n) for n in ("telefono", "telefono2", "correo")):
             self.add("persona.contacto", ruta, persona.linea, ap)
 
-    def _es_adulto(self, persona: Nodo, fecha_ref: date | None) -> bool | None:
+    def _es_adulto(self, persona: Nodo, fecha_ref: date | None, ruta: str) -> bool | None:
         """PENDIENTE-OFICIAL (P6): «mayor de edad» = 18 años cumplidos en la fecha de entrada.
         ``None`` si no se puede calcular."""
         nacimiento = _valor(persona, "fechaNacimiento")
@@ -475,6 +541,8 @@ class _Validador:
             return None
         n = date.fromisoformat(nacimiento)
         if n > fecha_ref:
+            nodo = _hijo(persona, "fechaNacimiento")
+            self.add("persona.nacimiento-posterior", f"{ruta}/fechaNacimiento", (nodo or persona).linea)  # P23
             return None
         edad = fecha_ref.year - n.year - ((fecha_ref.month, fecha_ref.day) < (n.month, n.day))
         return edad >= MAYORIA_DE_EDAD
